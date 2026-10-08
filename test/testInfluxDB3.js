@@ -82,14 +82,23 @@ describe('Test InfluxDB 3 client', function () {
                         });
                     }
                     if (q.includes(';')) {
+                        return json(500, { error: 'must provide only one InfluxQl statement per query' });
+                    }
+                    if (q.startsWith('SELECT mean')) {
                         return json(200, {
                             results: [
                                 {
                                     statement_id: 0,
                                     series: [{ name: 'a.0.x', columns: ['time', 'val'], values: [[1700000000000, 1.5]] }],
                                 },
+                            ],
+                        });
+                    }
+                    if (q.startsWith('SELECT value')) {
+                        return json(200, {
+                            results: [
                                 {
-                                    statement_id: 1,
+                                    statement_id: 0,
                                     series: [{ name: 'a.0.x', columns: ['time', 'value'], values: [[1699999990000, 1]] }],
                                 },
                             ],
@@ -259,6 +268,7 @@ describe('Test InfluxDB 3 client', function () {
     it('returns the rows of one statement, and one list per statement for several', async function () {
         const client = createClient();
         const multi = await client.query('SELECT mean(value) AS val FROM "a.0.x";SELECT value FROM "a.0.x" LIMIT 1');
+        assert.strictEqual(calls.filter(c => c.path === '/query').length, 2, 'one request per statement');
         assert.strictEqual(multi.length, 2);
         assert.strictEqual(multi[0][0].val, 1.5);
         assert.ok(multi[0][0].time instanceof Date);
@@ -271,6 +281,27 @@ describe('Test InfluxDB 3 client', function () {
         const call = calls.find(c => c.path === '/query');
         assert.strictEqual(new URLSearchParams(call.body).get('epoch'), 'ms');
         assert.strictEqual(new URLSearchParams(call.body).get('db'), 'iobroker');
+    });
+
+    it('splits statements only at real separators', function () {
+        const split = DatabaseInfluxDB3x.splitStatements;
+        assert.deepStrictEqual(split('SELECT 1 FROM "a";SELECT 2 FROM "b"'), ['SELECT 1 FROM "a"', 'SELECT 2 FROM "b"']);
+        // leading/trailing separators as the history query builds them
+        assert.deepStrictEqual(split(';SELECT value from "x" LIMIT 1;'), ['SELECT value from "x" LIMIT 1']);
+        // semicolons inside identifiers, strings and regular expressions are no separators
+        assert.deepStrictEqual(split('SELECT * FROM "my;id" WHERE "from" = \'a;b\''), [
+            'SELECT * FROM "my;id" WHERE "from" = \'a;b\'',
+        ]);
+        assert.deepStrictEqual(split('SELECT count(value) FROM /a;b/;SHOW MEASUREMENTS'), [
+            'SELECT count(value) FROM /a;b/',
+            'SHOW MEASUREMENTS',
+        ]);
+        assert.deepStrictEqual(split('SELECT "x\\";y" FROM a'), ['SELECT "x\\";y" FROM a']);
+        // a division is no regular expression
+        assert.deepStrictEqual(split('SELECT value / 10 FROM "a";SELECT 1 FROM "b"'), [
+            'SELECT value / 10 FROM "a"',
+            'SELECT 1 FROM "b"',
+        ]);
     });
 
     it('throws on a query error', async function () {

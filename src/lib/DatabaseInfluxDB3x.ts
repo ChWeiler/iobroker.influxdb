@@ -476,10 +476,55 @@ export default class DatabaseInfluxDB3x extends Database {
      * @param query one or more statements, separated by `;`
      * @returns one entry per statement
      */
-    private async runInfluxQL(query: string): Promise<StatementRows[]> {
-        this.log.debug(`Query to execute: ${query}`);
+    /**
+     * Split InfluxQL into single statements at `;`, ignoring semicolons inside quoted identifiers,
+     * string literals and regular expressions (e.g. a state ID like `"my;id"`).
+     *
+     * @param query one or more statements
+     * @returns the non-empty statements, trimmed
+     */
+    static splitStatements(query: string): string[] {
+        const statements: string[] = [];
+        let current = '';
+        let quote: string | null = null;
+        for (let i = 0; i < query.length; i++) {
+            const char = query[i];
+            if (quote) {
+                current += char;
+                if (char === '\\' && i + 1 < query.length) {
+                    current += query[++i];
+                } else if (char === quote) {
+                    quote = null;
+                }
+            } else if (char === '"' || char === "'") {
+                quote = char;
+                current += char;
+            } else if (char === '/' && /(?:\bFROM|=~|!~|,)\s*$/i.test(current)) {
+                // a regular expression follows FROM, a regex match operator or a comma in the FROM
+                // list (`FROM /.*\/`, `=~ /x/`) - anywhere else `/` is a division
+                quote = '/';
+                current += char;
+            } else if (char === ';') {
+                statements.push(current);
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+        statements.push(current);
+        return statements.map(statement => statement.trim()).filter(statement => !!statement);
+    }
+
+    /**
+     * Run one InfluxQL statement against the 1.x compatible endpoint.
+     *
+     * @param statement a single statement
+     * @returns the rows of the statement
+     */
+    private async runStatement(statement: string): Promise<StatementRows> {
+        this.log.debug(`Query to execute: ${statement}`);
         // POST with a form body: no URL length limit for long queries; epoch=ms gives numeric timestamps
-        const body = new URLSearchParams({ db: this.database, q: query, epoch: 'ms' }).toString();
+        const body = new URLSearchParams({ db: this.database, q: statement, epoch: 'ms' }).toString();
         const { text } = await this.trackConnection(() =>
             this.request('POST', '/query', undefined, body, 'application/x-www-form-urlencoded'),
         );
@@ -492,13 +537,27 @@ export default class DatabaseInfluxDB3x extends Database {
         if (response.error) {
             throw new Error(`Error from InfluxDB: ${response.error}`);
         }
-        const results = response.results || [];
-        for (const result of results) {
-            if (result.error) {
-                throw new Error(`Error from InfluxDB: ${result.error}`);
-            }
+        const result = response.results?.[0];
+        if (result?.error) {
+            throw new Error(`Error from InfluxDB: ${result.error}`);
         }
-        return results.map(result => DatabaseInfluxDB3x.toRows(result.series));
+        return DatabaseInfluxDB3x.toRows(result?.series);
+    }
+
+    /**
+     * Run InfluxQL. InfluxDB 3 accepts only one statement per request (depending on the version), so
+     * several statements separated by `;` are sent one after the other.
+     *
+     * @param query one or more statements, separated by `;`
+     * @returns one entry per statement
+     */
+    private async runInfluxQL(query: string): Promise<StatementRows[]> {
+        const statements = DatabaseInfluxDB3x.splitStatements(query);
+        const results: StatementRows[] = [];
+        for (const statement of statements) {
+            results.push(await this.runStatement(statement));
+        }
+        return results;
     }
 
     /**
