@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-ioBroker adapter (`iobroker.influxdb`, type `storage`) that logs ioBroker states into InfluxDB 1.x or 2.x and serves them back via the ioBroker `getHistory` message API. Source is TypeScript in `src/`, compiled to `build/` (`main` = `build/main.js`); `build/` is gitignored and must exist before the adapter or the tests can run.
+ioBroker adapter (`iobroker.influxdb`, type `storage`) that logs ioBroker states into InfluxDB 1.x, 2.x or 3.x and serves them back via the ioBroker `getHistory` message API. Source is TypeScript in `src/`, compiled to `build/` (`main` = `build/main.js`); `build/` is gitignored and must exist before the adapter or the tests can run.
 
 ## Commands
 
@@ -20,7 +20,7 @@ npm run release-patch  # @alcalzone/release-script (runs npm run build before co
 
 ### Running the tests
 
-`test/testPackageFiles.js` is the only offline suite. The four `testAdapter*.js` suites are full integration tests: `test/lib/setup.js` installs js-controller into `tmp/` from npm (first run takes minutes, timeouts are 600 s), starts a real adapter instance, and talks to a **real InfluxDB server** — they fail without one.
+`test/testPackageFiles.js`, `test/testErrors.js` and `test/testInfluxDB3.js` (InfluxDB 3 client against an HTTP mock) are offline suites. The four `testAdapter*.js` suites are full integration tests: `test/lib/setup.js` installs js-controller into `tmp/` from npm (first run takes minutes, timeouts are 600 s), starts a real adapter instance, and talks to a **real InfluxDB server** — they fail without one.
 
 Which DB the suites target is decided by env vars:
 
@@ -42,9 +42,10 @@ CI (`.github/workflows/test-and-release.yml`) runs package-file checks, then the
 - `src/lib/Database.ts` — abstract client contract (`connect`, `writeSeries`/`writePoints`/`writePoint`, `query`, retention, `getMetaDataStorageType`, …).
 - `src/lib/DatabaseInfluxDB1x.ts` — InfluxQL over the `influx` package (user/password auth).
 - `src/lib/DatabaseInfluxDB2x.ts` — Flux over `@influxdata/influxdb-client` (+ `-apis`), token/org auth, buckets instead of databases.
+- `src/lib/DatabaseInfluxDB3x.ts` — InfluxDB 3 Core/Enterprise over plain `node:http(s)`, token auth: InfluxQL via the v1-compatible `/query` (POST form, `epoch=ms`, result shape mirrors the `influx` driver incl. `groups()`), writes via `/api/v3/write_lp` (own line-protocol serializer, ms precision), databases/retention/drop table via `/api/v3/configure/*`. The `influx` driver is not used because it sends empty `epoch`/`rp`/`params` and an unauthenticated `/ping`. Type conflicts are re-worded into the 1.x `field type conflict ... is type X, already exists as type Y` text so the repair logic in `main.ts` works unchanged. InfluxDB 3 cannot delete points: `_delete` only supports "delete all" (drop table), `update` just overwrites the point.
 - `src/lib/aggregate.ts` — pure client-side aggregation/beautify/response code shared in shape with the ioBroker `history` and `sql` adapters. Keep its exported signatures aligned with those adapters.
 
-`connect()` picks the implementation from `config.dbversion`; almost every version-specific branch elsewhere keys off the same field.
+`connect()` picks the implementation from `config.dbversion`; almost every version-specific branch elsewhere keys off the same field. `isInfluxQL()` (1.x and 3.x) selects the InfluxQL read path (`getHistoryV1`, `query`, raw entries, measurement list).
 
 ### Write path
 

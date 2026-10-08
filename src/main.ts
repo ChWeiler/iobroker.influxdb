@@ -5,6 +5,7 @@ import { sendResponse, sortByTs } from '@iobroker/aggregate';
 
 import DatabaseInfluxDB1x from './lib/DatabaseInfluxDB1x';
 import DatabaseInfluxDB2x from './lib/DatabaseInfluxDB2x';
+import DatabaseInfluxDB3x from './lib/DatabaseInfluxDB3x';
 import {
     escapeFluxString,
     escapeInfluxQLIdentifier,
@@ -481,6 +482,11 @@ export class InfluxDBAdapter extends Adapter {
         }
     }
 
+    /** InfluxDB 1.x and 3.x are queried with InfluxQL, 2.x with Flux */
+    isInfluxQL(): boolean {
+        return this.config.dbversion === '1.x' || this.config.dbversion === '3.x';
+    }
+
     async connect(): Promise<void> {
         if (!this.config.path) {
             this.config.path = '';
@@ -520,6 +526,29 @@ export class InfluxDBAdapter extends Adapter {
                         organization: this.config.organization,
                         validateSSL: this.config.validateSSL,
                         useTags: this.config.usetags,
+                    },
+                );
+                break;
+            case '3.x':
+                // eslint-disable-next-line no-control-regex
+                if (/[\x00-\x08\x0E-\x1F\x80-\xFF]/.test(this.config.token)) {
+                    this.log.error('Token error: Please re-enter the token in Admin. Stopping');
+                    return;
+                }
+                // InfluxDB 3 only knows fields for the metadata (q, ack, from), like 1.x
+                this.config.usetags = false;
+                this._client = new DatabaseInfluxDB3x(
+                    {
+                        log: this.log,
+                        host: this.config.host,
+                        port: this.config.port,
+                        protocol: this.config.protocol,
+                        database: this.config.dbname,
+                        requestTimeout: this.config.requestTimeout as number,
+                    },
+                    {
+                        token: this.config.token,
+                        validateSSL: this.config.validateSSL,
                     },
                 );
                 break;
@@ -585,7 +614,7 @@ export class InfluxDBAdapter extends Adapter {
                 // tags/fields compatibility check), so it can abort the start on a conflict.
                 await this.checkMetaDataStorageType();
             } else {
-                // For 1.x there is no metadata storage type check, so finalize the connection here.
+                // For 1.x and 3.x there is no metadata storage type check, so finalize the connection here.
                 // (Previously startPing/processStartValues/"Connected!" only ran for 2.x.)
                 this.setConnected(true);
                 await this.processStartValues();
@@ -778,6 +807,23 @@ export class InfluxDBAdapter extends Adapter {
                         },
                     );
                     break;
+                case '3.x':
+                    this.log.info('Connecting to InfluxDB 3');
+                    lClient = new DatabaseInfluxDB3x(
+                        {
+                            log: this.log,
+                            host: config.host,
+                            port: config.port,
+                            protocol: config.protocol,
+                            database: config.dbname,
+                            requestTimeout: config.requestTimeout,
+                        },
+                        {
+                            token: config.token,
+                            validateSSL: config.validateSSL,
+                        },
+                    );
+                    break;
                 default:
                 case '1.x':
                     lClient = new DatabaseInfluxDB1x(
@@ -888,25 +934,22 @@ export class InfluxDBAdapter extends Adapter {
         this.config.dbname ||= 'iobroker';
         try {
             if (msg.command === 'features') {
-                // Currently the supported features are identical for InfluxDB 1.x and 2.x
-                this.sendTo(
-                    msg.from,
-                    msg.command,
-                    {
-                        supportedFeatures: [
-                            'update',
-                            'delete',
-                            'deleteRange',
-                            'deleteAll',
-                            'storeState',
-                            'getDatapoints',
-                            'getRawEntries',
-                            'getDpStatistics',
-                            'cleanupOrphaned',
-                        ],
-                    },
-                    msg.callback,
+                // InfluxDB 1.x and 2.x support everything. InfluxDB 3 cannot delete single values or
+                // time ranges - only whole measurements (deleteAll, cleanupOrphaned)
+                const supportedFeatures = [
+                    'update',
+                    'delete',
+                    'deleteRange',
+                    'deleteAll',
+                    'storeState',
+                    'getDatapoints',
+                    'getRawEntries',
+                    'getDpStatistics',
+                    'cleanupOrphaned',
+                ].filter(
+                    feature => this.config.dbversion !== '3.x' || (feature !== 'delete' && feature !== 'deleteRange'),
                 );
+                this.sendTo(msg.from, msg.command, { supportedFeatures }, msg.callback);
             } else if (msg.command === 'update') {
                 await this.updateState(msg);
             } else if (msg.command === 'delete') {
@@ -918,7 +961,7 @@ export class InfluxDBAdapter extends Adapter {
             } else if (msg.command === 'storeState') {
                 await this.storeState(msg);
             } else if (msg.command === 'getHistory') {
-                if (this.config.dbversion === '1.x') {
+                if (this.isInfluxQL()) {
                     await this.getHistoryV1(msg);
                 } else {
                     await this.getHistoryV2(msg);
@@ -1987,7 +2030,22 @@ datasources:
             throw new Error('not connected');
         }
 
-        if (this.config.dbversion === '1.x') {
+        if (this.config.dbversion === '3.x') {
+            // InfluxDB 3 cannot delete points, only whole tables. "Delete all" is therefore possible,
+            // single values and ranges are not.
+            if (state.ts || state.start || state.end) {
+                throw new Error(
+                    'InfluxDB 3 cannot delete single values or time ranges. Only all values of a datapoint can be removed.',
+                );
+            }
+            try {
+                await this._client?.dropMeasurement(id);
+                this.setConnected(true);
+            } catch (error) {
+                this.log.warn(`Error on delete all values of "${id}": ${formatError(error)}`);
+                throw error;
+            }
+        } else if (this.config.dbversion === '1.x') {
             const safeId = escapeInfluxQLIdentifier(id);
             let query;
             if (state.ts) {
@@ -2291,7 +2349,7 @@ datasources:
             throw new Error('not connected');
         }
 
-        if (this.config.dbversion === '1.x') {
+        if (this.isInfluxQL()) {
             const query = `SELECT * FROM "${escapeInfluxQLIdentifier(id)}" WHERE time = '${new Date(state.ts).toISOString()}'`;
 
             try {
@@ -2310,8 +2368,20 @@ datasources:
                     this.setConnected(true);
                 }
 
-                if (result?.[0]?.[0]) {
-                    const stored = result[0][0];
+                // A single statement yields the rows directly, older driver versions wrapped them per statement
+                const first: unknown = result?.[0];
+                const stored = (Array.isArray(first) ? first[0] : first) as
+                    | {
+                          value?: ioBroker.StateValue;
+                          val: ioBroker.StateValue;
+                          ack: boolean;
+                          q: number;
+                          ts: number;
+                          from: string;
+                          time?: number;
+                      }
+                    | undefined;
+                if (stored) {
                     const storedState: ioBroker.State = {
                         val: stored.val === undefined ? stored.value : stored.val,
                         ack: stored.ack,
@@ -2334,7 +2404,11 @@ datasources:
                     }
                     storedState.ts = state.ts;
 
-                    await this._delete(id, { ts: new Date(stored.time || stored.ts).getTime() });
+                    // InfluxDB 3 cannot delete a point, but a point with the same timestamp simply
+                    // replaces the stored one
+                    if (this.config.dbversion !== '3.x') {
+                        await this._delete(id, { ts: new Date(stored.time || stored.ts).getTime() });
+                    }
                     await this.pushValueIntoDB(id, storedState, true);
                 } else {
                     this.log.error(`Cannot find value to delete for ${id}: ${JSON.stringify(state)}`);
@@ -3788,7 +3862,7 @@ ${!this.config.usetags ? '|> pivot(rowKey:["_time"], columnKey: ["_field"], valu
             throw new Error('not connected');
         }
 
-        if (this.config.dbversion === '1.x') {
+        if (this.isInfluxQL()) {
             const rows = await this._client.query<{ name: string }>('SHOW MEASUREMENTS');
             return (rows || []).map(row => row.name).filter(name => !!name);
         }
@@ -4013,7 +4087,7 @@ ${!this.config.usetags ? '|> pivot(rowKey:["_time"], columnKey: ["_field"], valu
         let countQuery: string;
         let dataQuery: string;
 
-        if (this.config.dbversion === '1.x') {
+        if (this.isInfluxQL()) {
             const safeId = escapeInfluxQLIdentifier(id);
             const conditions: string[] = [];
             if (options.start !== undefined) {

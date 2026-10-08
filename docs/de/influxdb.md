@@ -8,6 +8,12 @@
 
 Hier werden die Einstellungen, die beim Anlegen der influxDB gemacht wurden eingegeben, damit der ioBroker-Server Zugriff auf diese Datenbank erhält. [![](img/influxdb_ioBroker_Adapter_influxDB_Konfig.jpg)](img/influxdb_ioBroker_Adapter_influxDB_Konfig.jpg)
 
+#### DB-Version
+
+`1.x`, `2.x` oder `3.x (Core / Enterprise)`. Bei InfluxDB 3 werden statt Login/Passwort nur ein **Token** (Admin-Token oder Ressourcen-Token mit Lese- und Schreibrechten auf die Datenbank) und der Port (Standard bei InfluxDB 3: `8181`) benötigt.
+
+Einschränkungen mit InfluxDB 3: einzelne Werte oder Zeiträume lassen sich nicht löschen (InfluxDB 3 kennt kein Löschen von Punkten), nur alle Werte eines Datenpunkts. Statt Retention Policies gibt es eine Aufbewahrungsdauer pro Datenbank, die der Adapter setzt. Metadaten (`q`, `ack`, `from`) werden immer als Felder gespeichert. Eigene Abfragen über die Nachricht "query" erfolgen in InfluxQL.
+
 #### Host
 
 Hostname oder IP des Datenbank Servers.
