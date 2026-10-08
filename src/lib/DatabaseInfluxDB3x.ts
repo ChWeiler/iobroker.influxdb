@@ -235,20 +235,49 @@ export default class DatabaseInfluxDB3x extends Database {
     }
 
     async getRetentionPolicyForDB(dbname: string): Promise<{ name: string | null; time: number | undefined } | null> {
-        // InfluxDB 3 has no retention policies, only one retention period per database. It still answers
-        // `SHOW RETENTION POLICIES` with that period, formatted like 1.x ("24h0m0s", "0s" = infinite).
-        const rows = await this.query<{ name?: string; duration?: string }>(
-            `SHOW RETENTION POLICIES ON "${escapeInfluxQLIdentifier(dbname)}"`,
-        );
-        const row = rows?.[0];
-        if (!row?.duration) {
-            return { name: null, time: undefined };
+        // InfluxDB 3 has no retention policies, only one retention period per database.
+        // 1. `system.databases` (SQL) knows it directly. `SHOW RETENTION POLICIES` is not used first:
+        //    some InfluxDB 3 versions drop the connection on it instead of answering.
+        try {
+            const { text } = await this.trackConnection(() =>
+                this.request('POST', '/api/v3/query_sql', undefined, {
+                    db: dbname,
+                    q: `SELECT retention_period_ns FROM system.databases WHERE database_name = '${dbname.replace(/'/g, "''")}'`,
+                    format: 'json',
+                }),
+            );
+            const rows = text ? JSON.parse(text) : [];
+            if (Array.isArray(rows) && rows.length) {
+                const ns = rows[0]?.retention_period_ns;
+                // null = infinite
+                const time = ns === null || ns === undefined ? 0 : Math.round(Number(ns) / 1_000_000_000);
+                return { name: 'autogen', time };
+            }
+        } catch (error) {
+            this.log.debug(`Cannot read retention from system.databases: ${(error as Error).message}`);
         }
-        const match = row.duration.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
-        const time = match
-            ? (parseInt(match[1], 10) || 0) * 3600 + (parseInt(match[2], 10) || 0) * 60 + (parseInt(match[3], 10) || 0)
-            : undefined;
-        return { name: row.name || 'autogen', time };
+
+        // 2. older servers without that column: InfluxQL, formatted like 1.x ("24h0m0s", "0s" = infinite)
+        try {
+            const rows = await this.query<{ name?: string; duration?: string }>(
+                `SHOW RETENTION POLICIES ON "${escapeInfluxQLIdentifier(dbname)}"`,
+            );
+            const row = rows?.[0];
+            if (row?.duration) {
+                const match = row.duration.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+                const time = match
+                    ? (parseInt(match[1], 10) || 0) * 3600 +
+                      (parseInt(match[2], 10) || 0) * 60 +
+                      (parseInt(match[3], 10) || 0)
+                    : undefined;
+                return { name: row.name || 'autogen', time };
+            }
+        } catch (error) {
+            this.log.debug(`Cannot read retention via SHOW RETENTION POLICIES: ${(error as Error).message}`);
+        }
+
+        // unknown - the caller then simply (re)applies the configured period
+        return { name: null, time: undefined };
     }
 
     async applyRetentionPolicyToDB(dbname: string, retention: string | number): Promise<void> {

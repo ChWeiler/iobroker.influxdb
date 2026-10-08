@@ -11,6 +11,7 @@ describe('Test InfluxDB 3 client', function () {
     let port;
     let calls = [];
     let putSupported = true;
+    let sqlSupported = true;
 
     const log = { silly() {}, debug() {}, info() {}, warn() {}, error() {} };
     const createClient = () =>
@@ -50,8 +51,22 @@ describe('Test InfluxDB 3 client', function () {
                     res.writeHead(204);
                     return res.end();
                 }
+                if (url.pathname === '/api/v3/query_sql') {
+                    if (!sqlSupported) {
+                        return json(400, { error: 'column retention_period_ns not found' });
+                    }
+                    const { db, q, format } = JSON.parse(body);
+                    assert.strictEqual(format, 'json');
+                    assert.ok(q.includes('system.databases'), q);
+                    return json(200, db === 'iobroker' ? [{ retention_period_ns: 86400 * 1e9 }] : []);
+                }
                 if (url.pathname === '/query') {
                     const q = new URLSearchParams(body).get('q');
+                    if (q.startsWith('SHOW RETENTION POLICIES') && sqlSupported) {
+                        // like the InfluxDB 3 version that drops the connection on this statement
+                        req.socket.destroy();
+                        return;
+                    }
                     if (q.startsWith('SHOW RETENTION POLICIES')) {
                         return json(200, {
                             results: [
@@ -139,6 +154,7 @@ describe('Test InfluxDB 3 client', function () {
     beforeEach(function () {
         calls = [];
         putSupported = true;
+        sqlSupported = true;
     });
 
     after(function (done) {
@@ -208,9 +224,23 @@ describe('Test InfluxDB 3 client', function () {
         assert.deepStrictEqual(JSON.parse(create.body), { db: 'other' });
     });
 
-    it('reads the retention period', async function () {
+    it('reads the retention period from system.databases', async function () {
         const rp = await createClient().getRetentionPolicyForDB('iobroker');
         assert.deepStrictEqual(rp, { name: 'autogen', time: 86400 });
+        assert.ok(!calls.some(call => call.path === '/query'), 'SHOW RETENTION POLICIES must not be needed');
+    });
+
+    it('falls back to SHOW RETENTION POLICIES on older servers', async function () {
+        sqlSupported = false;
+        const rp = await createClient().getRetentionPolicyForDB('iobroker');
+        assert.deepStrictEqual(rp, { name: 'autogen', time: 86400 });
+    });
+
+    it('applies the retention even if it cannot be read', async function () {
+        // other database: system.databases has no row, SHOW RETENTION POLICIES drops the connection
+        await createClient().applyRetentionPolicyToDB('other', 3600);
+        const put = calls.find(call => call.method === 'PUT');
+        assert.deepStrictEqual(JSON.parse(put.body), { db: 'other', retention_period: '3600s' });
     });
 
     it('sets the retention period, with fallback for older servers', async function () {
@@ -275,6 +305,7 @@ describe('Test InfluxDB 3 client', function () {
         assert.strictEqual(multi[0][0].time.getTime(), 1700000000000);
         assert.strictEqual(multi[1][0].value, 1);
 
+        sqlSupported = false; // let the mock answer SHOW RETENTION POLICIES
         const single = await client.query('SHOW RETENTION POLICIES ON "iobroker"');
         assert.strictEqual(single[0].duration, '24h0m0s');
 
