@@ -136,6 +136,45 @@ describe('Test InfluxDB 3 client', function () {
         server.close(() => done());
     });
 
+    it('retries once when the server closed a kept-alive connection', async function () {
+        // every second request on the same socket is answered by closing the socket, like a server
+        // that drops an idle keep-alive connection right when the client reuses it
+        const perSocket = new WeakMap();
+        const resetServer = http.createServer((req, res) => {
+            const count = (perSocket.get(req.socket) || 0) + 1;
+            perSocket.set(req.socket, count);
+            req.resume();
+            req.on('end', () => {
+                if (count > 1) {
+                    req.socket.destroy();
+                    return;
+                }
+                res.writeHead(200, { 'content-type': 'application/json', connection: 'keep-alive' });
+                res.end(JSON.stringify([{ 'iox::database': 'iobroker' }]));
+            });
+        });
+        await new Promise(resolve => resetServer.listen(0, '127.0.0.1', resolve));
+        try {
+            const client = new DatabaseInfluxDB3x(
+                {
+                    log,
+                    host: '127.0.0.1',
+                    port: resetServer.address().port,
+                    protocol: 'http',
+                    database: 'iobroker',
+                    requestTimeout: 2000,
+                },
+                { token: 'apiv3_test' },
+            );
+            for (let i = 0; i < 3; i++) {
+                assert.deepStrictEqual(await client.getDatabaseNames(), ['iobroker']);
+            }
+        } finally {
+            resetServer.closeAllConnections();
+            await new Promise(resolve => resetServer.close(resolve));
+        }
+    });
+
     it('pings with the token', async function () {
         const hosts = await createClient().ping();
         assert.deepStrictEqual(hosts, [{ online: true }]);

@@ -80,7 +80,33 @@ export default class DatabaseInfluxDB3x extends Database {
      * @param contentType content type for a string body
      * @returns status code and response text
      */
-    private request(
+    private async request(
+        method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+        path: string,
+        query?: Record<string, string>,
+        body?: unknown,
+        contentType?: string,
+    ): Promise<{ status: number; text: string }> {
+        try {
+            return await this.requestOnce(method, path, query, body, contentType);
+        } catch (error) {
+            // A keep-alive socket can be closed by the server just when it is reused for the next
+            // request. Node then reports "socket hang up" (ECONNRESET) although the server is fine.
+            // That request never reached the server, so it is safe to send it once more on a new socket.
+            if ((error as { reusedSocket?: boolean }).reusedSocket && DatabaseInfluxDB3x.isReset(error)) {
+                this.log.debug(`${method} ${path}: kept-alive connection was closed by the server, retrying`);
+                return await this.requestOnce(method, path, query, body, contentType);
+            }
+            throw error;
+        }
+    }
+
+    private static isReset(error: unknown): boolean {
+        const err = error as { code?: string; message?: string };
+        return err?.code === 'ECONNRESET' || /socket hang up/i.test(err?.message || '');
+    }
+
+    private requestOnce(
         method: 'GET' | 'POST' | 'PUT' | 'DELETE',
         path: string,
         query?: Record<string, string>,
@@ -148,7 +174,12 @@ export default class DatabaseInfluxDB3x extends Database {
                 },
             );
             req.on('timeout', () => req.destroy(new Error('Request timed out')));
-            req.on('error', reject);
+            req.on('error', (error: Error & { reusedSocket?: boolean }) => {
+                // keep code/errno so the error is still recognized as connection error, but say which call failed
+                error.message = `${method} ${path}: ${error.message}`;
+                error.reusedSocket = req.reusedSocket;
+                reject(error);
+            });
             if (payload) {
                 req.write(payload);
             }
