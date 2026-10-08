@@ -1,0 +1,517 @@
+{
+    "type": "tabs",
+    "i18n": true,
+    "items": {
+        "dbTab": {
+            "type": "panel",
+            "label": "DB settings",
+            "items": {
+                "dockerInflux.enabled": {
+                    "newLine": true,
+                    "type": "checkDocker",
+                    "label": "Use self-hosted InfluxDB in Docker",
+                    "hidden": "data.dbversion === '3.x' && !data.dockerInflux?.enabled",
+                    "help": "docker_explanation",
+                    "xs": 12
+                },
+                "dockerGrafana.enabled": {
+                    "newLine": true,
+                    "type": "checkDocker",
+                    "hideVersion": true,
+                    "hidden": "!data.dockerInflux?.enabled",
+                    "label": "Use self-hosted Grafana in Docker",
+                    "xs": 12
+                },
+                "dbversion": {
+                    "newLine": true,
+                    "type": "select",
+                    "label": "DB-Version",
+                    "noTranslation": true,
+                    "default": "1.x",
+                    "options": [
+                        { "label": "1.x", "value": "1.x" },
+                        { "label": "2.x", "value": "2.x" },
+                        { "label": "3.x (Core / Enterprise)", "value": "3.x" }
+                    ],
+                    "hidden": "!!data.dockerInflux?.enabled",
+                    "sm": 12,
+                    "md": 8
+                },
+                "protocol": {
+                    "newLine": true,
+                    "type": "select",
+                    "noTranslation": true,
+                    "options": [
+                        { "label": "http", "value": "http" },
+                        { "label": "https", "value": "https" }
+                    ],
+                    "hidden": "!!data.dockerInflux?.enabled",
+                    "label": "Protocol",
+                    "sm": 12,
+                    "md": 2
+                },
+                "host": {
+                    "type": "text",
+                    "hidden": "!!data.dockerInflux?.enabled",
+                    "label": "Host",
+                    "sm": 12,
+                    "md": 8
+                },
+                "port": {
+                    "type": "number",
+                    "label": "Port",
+                    "hidden": "!!data.dockerInflux?.enabled",
+                    "min": 1,
+                    "max": 65565,
+                    "sm": 12,
+                    "md": 2
+                },
+                "path": {
+                    "type": "text",
+                    "label": "Path",
+                    "help": "only enter when e.g. a reverse proxy is used",
+                    "hidden": "data.dbversion !== '2.x' || !!data.dockerInflux?.enabled",
+                    "sm": 12,
+                    "md": 4
+                },
+                "user": {
+                    "newLine": true,
+                    "type": "text",
+                    "label": "User",
+                    "hidden": "data.dbversion === '2.x' || data.dbversion === '3.x' || !!data.dockerInflux?.enabled",
+                    "sm": 12,
+                    "md": 4
+                },
+                "password": {
+                    "type": "password",
+                    "label": "Password",
+                    "hidden": "data.dbversion === '2.x' || data.dbversion === '3.x' || !!data.dockerInflux?.enabled",
+                    "repeat": true,
+                    "sm": 12,
+                    "md": 8
+                },
+                "organization": {
+                    "newLine": true,
+                    "type": "text",
+                    "label": "Organization",
+                    "hidden": "data.dbversion !== '2.x' || !!data.dockerInflux?.enabled",
+                    "sm": 12,
+                    "md": 4
+                },
+                "token": {
+                    "type": "text",
+                    "label": "Token",
+                    "hidden": "data.dbversion === '1.x'",
+                    "sm": 12,
+                    "md": 8
+                },
+                "dbname": {
+                    "newLine": true,
+                    "type": "text",
+                    "label": "DB Name",
+                    "hidden": "!!data.dockerInflux?.enabled",
+                    "sm": 12,
+                    "md": 8
+                },
+                "requestTimeout": {
+                    "newLine": true,
+                    "type": "number",
+                    "label": "Request timeout",
+                    "help": "Milliseconds",
+                    "sm": 12,
+                    "md": 2
+                },
+                "validateSSL": {
+                    "newLine": false,
+                    "type": "checkbox",
+                    "label": "Validate SSL certificate",
+                    "hidden": "data.dbversion === '1.x' || !!data.dockerInflux?.enabled",
+                    "sm": 12,
+                    "md": 4
+                },
+                "round": {
+                    "newLine": true,
+                    "type": "number",
+                    "label": "Round real to",
+                    "sm": 12,
+                    "md": 4
+                },
+                "relogLastValueOnStart": {
+                    "type": "checkbox",
+                    "label": "Log the last value again on startup",
+                    "sm": 12,
+                    "md": 4
+                },
+                "seriesBufferMax": {
+                    "newLine": true,
+                    "type": "number",
+                    "label": "Buffer Datapoints",
+                    "help": "use 0 to not buffer at all",
+                    "sm": 12,
+                    "md": 4
+                },
+                "seriesBufferFlushInterval": {
+                    "type": "number",
+                    "label": "Buffer Flush Interval",
+                    "help": "Seconds",
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 3
+                },
+
+                "_testConnection": {
+                    "newLine": true,
+                    "variant": "contained",
+                    "color": "primary",
+                    "disabled": "!_alive",
+                    "type": "sendTo",
+                    "error": {
+                        "connect timeout": "Connection timeout"
+                    },
+                    "icon": "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDMyIDMyIiB3aWR0aD0iNTEyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPg0KICAgIDxwYXRoIGZpbGw9ImN1cnJlbnRDb2xvciIgZD0ibTIyLjk4NSAxMy42OTJoLS4wMTl2LTEuNzQ2YS44MjIuODIyIDAgMCAwIDAtLjEzOSAxIDEgMCAwIDAgLS4wMTEtLjE0NXYtNS4zNjhhLjcwOC43MDggMCAwIDAgMC0uMTM5IDIuNjQgMi42NCAwIDAgMCAtMS42MzQtMi4xNzFjLTEuNzUtLjk1NC01LjI2OS0xLjY0NS05LjMzLTEuNjQ1cy03LjU3OS42OTEtOS4zMjkgMS42NDVhMi42NCAyLjY0IDAgMCAwIC0xLjYzNSAyLjE2Ny43ODguNzg4IDAgMCAwIDAgLjEzNWwtLjAxIDUuNTIyYTEuMDQxIDEuMDQxIDAgMCAwIC4wMi4yNTZsLS4wMSA1LjRhLjg4NS44ODUgMCAwIDAgLjAxLjE5MWwtLjAxIDUuNDU1cy0uMTE4IDEuMTkgMS43ODQgMi4yNTVjMS4zMjguNzQ0IDMuOTU2IDEuNTM1IDkuMTg5IDEuNTM1YTM3LjA5MSAzNy4wOTEgMCAwIDAgNC43MTUtLjI2NCA3Ljk5MyA3Ljk5MyAwIDEgMCA2LjI2OC0xMi45NDV6bS0xOS42NjEtNy43NzJhNC43MDYgNC43MDYgMCAwIDEgLjk4Ni0uNDk0IDIzLjExMiAyMy4xMTIgMCAwIDEgNy42ODEtMS4wODcgMjMuMTExIDIzLjExMSAwIDAgMSA3LjY4MSAxLjA4NyA0LjczOSA0LjczOSAwIDAgMSAuOTg3LjQ5NCAxLjcgMS43IDAgMCAxIC4yMzIuMjA5IDIuMjc2IDIuMjc2IDAgMCAxIC0uMzE4LjMxOCA0Ljk4NCA0Ljk4NCAwIDAgMSAtLjkuNDM4IDIzLjE0IDIzLjE0IDAgMCAxIC03LjY4MSAxLjA4NiAyMy4xNDEgMjMuMTQxIDAgMCAxIC03LjY4Mi0xLjA4NiA1LjAxOSA1LjAxOSAwIDAgMSAtLjktLjQzOCAyLjMzNCAyLjMzNCAwIDAgMSAtLjMxOC0uMzE4IDEuNzcgMS43NyAwIDAgMSAuMjMyLS4yMDl6bS0uMyAyLjY0M2MxLjM4Ny43IDQuMDA1IDEuNDA4IDguOTY4IDEuNDA4czcuNTc1LS43IDguOTY0LTEuNDA2djMuMTEyYTIuMzE2IDIuMzE2IDAgMCAxIC0uNzM3LjY0N2MtMS4xNzQuNjY0LTMuNTMgMS4yNzktOC4yMjcgMS4yNzktNC42NjkgMC03LjAyOC0uNjE2LTguMjEyLTEuMjhhMi40NTUgMi40NTUgMCAwIDEgLS43NS0uNjQ2cTAtLjAzNi0uMDEyLS4wNzJ6bTguOTc2IDE2LjMzN2MtNC42NyAwLTcuMDI5LS42MTctOC4yMTMtMS4yODFhMi40MzggMi40MzggMCAwIDEgLS43NjItLjY2MmwuMDA2LTMuMWMxLjM4OC43IDQuMDA2IDEuNDA4IDguOTY5IDEuNDA4IDEuMTE3IDAgMi4xMTItLjAzNSAzLS4xLS4wMTEuMTY3LS4wMTYuMzM1LS4wMTYuNTA1YTcuOTM4IDcuOTM4IDAgMCAwIC42MTUgMy4wNzJjLTEuMDE4LjEwMy0yLjIwOC4xNTgtMy41OTkuMTU4em0zLjQtNS43OGMtLjk3NS4wODUtMi4xLjEzNC0zLjQuMTM0LTQuNjcgMC03LjAyOS0uNjE2LTguMjEzLTEuMjhhMi40MjkgMi40MjkgMCAwIDEgLS43NjEtLjY2MmwuMDA2LTMuMWMxLjM4OC43IDQuMDA2IDEuNDA4IDguOTY5IDEuNDA4YTMwLjIyMyAzMC4yMjMgMCAwIDAgNi41MzktLjU4NSA4LjAyIDguMDIgMCAwIDAgLTMuMTQgNC4wODZ6bTcuNTgxIDguNTRhNS45ODggNS45ODggMCAwIDEgLTUuODUxLTcuMzE1Yy4wMDYtLjAxOS4wMTEtLjAzOS4wMTYtLjA1OHMuMDA5LS4wMzkuMDEyLS4wNTlhNiA2IDAgMSAxIDUuODIzIDcuNDMyeiIvPg0KICAgIDxwYXRoIGZpbGw9ImN1cnJlbnRDb2xvciIgZD0ibTE5LjYzOSAyMS45YTEgMSAwIDAgMCAxLjQxOCAxLjQxMSAyLjYyOCAyLjYyOCAwIDAgMSAzLjcyNSAwIDEgMSAwIDAgMCAxLjQxOC0xLjQxMSA0LjYyOCA0LjYyOCAwIDAgMCAtNi41NjEgMHoiLz4NCiAgICA8ZWxsaXBzZSBmaWxsPSJjdXJyZW50Q29sb3IiIGN4PSIyMi45ODUiIGN5PSIyNC44NDMiIHJ4PSIxLjY2NyIgcnk9IjEuNjc0Ii8+DQogICAgPHBhdGggZmlsbD0iY3VycmVudENvbG9yIiBkPSJtMjcuOTc5IDE5Ljc2OGE3LjA0NSA3LjA0NSAwIDAgMCAtOS45ODggMCAxIDEgMCAxIDAgMS40MTcgMS40MTIgNS4wNDUgNS4wNDUgMCAwIDEgNy4xNTQgMCAxIDEgMCAxIDAgMS40MTctMS40MTJ6Ii8+DQo8L3N2Zz4=",
+                    "command": "test",
+                    "jsonData": "{\"config\": {\"dockerInflux\": {\"enabled\": ${!!data.dockerInflux?.enabled}, \"port\": ${data.dockerInflux?.port || 8086}}, \"dbversion\": \"${data.dbversion}\", \"protocol\": \"${data.protocol}\", \"port\": \"${data.port}\", \"host\": \"${data.host}\", \"user\": \"${data.user}\", \"organization\": \"${data.organization}\", \"dbname\": \"${data.dbname}\", \"requestTimeout\": \"${data.requestTimeout}\", \"validateSSL\": ${data.validateSSL}, \"password\": \"${encodeURIComponent(data.password || '')}\", \"token\": \"${data.token}\", \"path\": \"${data.path}\"}}",
+                    "label": "Test connection"
+                },
+
+                "_resetDB": {
+                    "type": "sendTo",
+                    "variant": "outlined",
+                    "color": "primary",
+                    "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBmaWxsPSIjODAxMTExIiBkPSJNNiAxOWMwIDEuMS45IDIgMiAyaDhjMS4xIDAgMi0uOSAyLTJWN0g2djEyek0xOSA0aC0zLjVsLTEtMWgtNWwtMSAxSDV2MmgxNFY0eiIvPjwvc3ZnPgkJCQkJCQkJ",
+                    "disabled": "!_alive",
+                    "result": {
+                        "deleted": "Deleted! Restarting..."
+                    },
+                    "confirm": {
+                        "text": "Are you sure? All data will be dropped.",
+                        "title": "Please confirm",
+                        "ok": "Delete",
+                        "cancel": "Cancel"
+                    },
+                    "command": "destroy",
+                    "label": "Reset DB"
+                }
+            }
+        },
+        "defaultTab": {
+            "type": "panel",
+            "label": "Default settings",
+            "items": {
+                "debounceTime": {
+                    "newLine": true,
+                    "type": "number",
+                    "sm": 12,
+                    "md": 4,
+                    "min": 0,
+                    "max": 86400000,
+                    "label": "De-bounce time",
+                    "help": "De-bounce interval(ms)"
+                },
+                "blockTime": {
+                    "type": "number",
+                    "sm": 12,
+                    "md": 4,
+                    "min": 0,
+                    "max": 86400000,
+                    "label": "Block time",
+                    "defaultFunc": "(data.debounce || data.debounce === '0' || data.debounce === 0) ? parseInt(data.debounce, 10) : 0",
+                    "help": "blockTime"
+                },
+                "changesRelogInterval": {
+                    "newLine": true,
+                    "type": "number",
+                    "label": "log changes interval(s)",
+                    "help": "0 = disable",
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4,
+                    "min": 0,
+                    "max": 2147483
+                },
+                "changesMinDelta": {
+                    "type": "number",
+                    "label": "log changes minimal delta",
+                    "help": "0 = disable delta check",
+                    "sm": 12,
+                    "md": 6,
+                    "lg": 4
+                },
+                "retention": {
+                    "newLine": true,
+                    "type": "select",
+                    "label": "retention",
+                    "options": [
+                        {
+                            "value": 0,
+                            "label": "keep forever"
+                        },
+                        {
+                            "value": 63072000,
+                            "label": "2 years"
+                        },
+                        {
+                            "value": 31536000,
+                            "label": "1 year"
+                        },
+                        {
+                            "value": 15811200,
+                            "label": "6 months"
+                        },
+                        {
+                            "value": 7948800,
+                            "label": "3 months"
+                        },
+                        {
+                            "value": 2678400,
+                            "label": "1 months"
+                        },
+                        {
+                            "value": 1209600,
+                            "label": "2 weeks"
+                        },
+                        {
+                            "value": 604800,
+                            "label": "1 week"
+                        },
+                        {
+                            "value": 432000,
+                            "label": "5 days"
+                        },
+                        {
+                            "value": 259200,
+                            "label": "3 days"
+                        },
+                        {
+                            "value": 86400,
+                            "label": "1 day"
+                        },
+                        {
+                            "value": -1,
+                            "label": "Custom timeframe"
+                        }
+                    ],
+                    "sm": 12,
+                    "md": 6
+                },
+                "customRetentionDuration": {
+                    "type": "number",
+                    "label": "Custom retention duration (days)",
+                    "min": 1,
+                    "sm": 12,
+                    "md": 4,
+                    "hidden": "(data.retention !== -1)",
+                    "help": "Number of days to keep the data."
+                },
+                "retentionConfirm": {
+                    "newLine": true,
+                    "type": "checkbox",
+                    "label": "Apply lower retention",
+                    "hidden": "((originalData.retention >= 0 && data.retention >= 0 && ((data.retention >= originalData.retention && originalData.retention != 0) || data.retention == 0)) || (originalData.retention === -1 && data.retention >= 0 && ((data.retention >= parseInt(originalData.customRetentionDuration, 10) * 24 * 60) || data.retention == 0)) || (originalData.retention > 0 && data.retention === -1 && (parseInt(data.customRetentionDuration, 10) * 24 * 60 >= originalData.retention)) || (originalData.retention === -1 && data.retention === -1 && data.customRetentionDuration >= originalData.customRetentionDuration))",
+                    "disabled": "((originalData.retention >= 0 && data.retention >= 0 && ((data.retention >= originalData.retention && originalData.retention != 0) || data.retention == 0)) || (originalData.retention === -1 && data.retention >= 0 && ((data.retention >= parseInt(originalData.customRetentionDuration, 10) * 24 * 60) || data.retention == 0)) || (originalData.retention > 0 && data.retention === -1 && (parseInt(data.customRetentionDuration, 10) * 24 * 60 >= originalData.retention)) || (originalData.retention === -1 && data.retention === -1 && data.customRetentionDuration >= originalData.customRetentionDuration))",
+                    "confirm": {
+                        "text": "Lowering the retention period should be considered with caution: Past data exceeding the retention period will be lost.",
+                        "condition": "data.retentionConfirm && data.retentionConfirm != originalData.retentionConfirm",
+                        "title": "Please confirm!",
+                        "type": "warning"
+                    },
+                    "validator": "data.retentionConfirm",
+                    "validatorErrorText": "Confirmation required.",
+                    "validatorNoSaveOnError": true,
+                    "doNotSave": true
+                },
+                "round": {
+                    "newLine": true,
+                    "type": "text",
+                    "label": "Round real to",
+                    "sm": 12,
+                    "md": 4,
+                    "lg": 3,
+                    "validator": "((data.round || '').toString().length === 0) || isFinite(data.round)",
+                    "validatorErrorText": "Enter a number or leave the field empty",
+                    "validatorNoSaveOnError": true
+                },
+                "disableSkippedValueLogging": {
+                    "newLine": true,
+                    "label": "Disable charting optimized logging of skipped values",
+                    "type": "checkbox",
+                    "sm": 12,
+                    "md": 4
+                },
+                "enableDebugLogs": {
+                    "newLine": true,
+                    "label": "Enable enhanced debug logs for the datapoint",
+                    "type": "checkbox",
+                    "sm": 12,
+                    "md": 4
+                },
+                "debounce": {
+                    "type": "number",
+                    "sm": 12,
+                    "md": 4,
+                    "min": 0,
+                    "label": "De-bounce time",
+                    "help": "debounce",
+                    "hidden": "true"
+                }
+            }
+        },
+        "advancedTab": {
+            "type": "panel",
+            "label": "Expert Settings",
+            "hidden": "data.dbversion === '1.x'",
+            "items": {
+                "usetags": {
+                    "type": "checkbox",
+                    "sm": 12,
+                    "md": 6,
+                    "label": "Use tags to store metadata information, instead of fields",
+                    "hidden": "data.dbversion === '3.x'",
+                    "help": "usetags help",
+                    "confirm": {
+                        "text": "This feature can only be used on databases that are empty, or already were setup with this feature enabled. Otherwise it will cause errors (see logs).",
+                        "condition": "data.usetags && data.usetags != originalData.usetags",
+                        "title": "Please confirm!",
+                        "type": "warning"
+                    }
+                },
+                "pingserver": {
+                    "type": "checkbox",
+                    "sm": 12,
+                    "md": 6,
+                    "label": "Send health-check pings to database",
+                    "help": "health-check help"
+                }
+            }
+        },
+        "dataTab": {
+            "type": "panel",
+            "label": "Data browser",
+            "items": {
+                "_dataBrowser": {
+                    "type": "custom",
+                    "i18n": true,
+                    "url": "custom/customComponents.js",
+                    "name": "InfluxDBComponentsSet/Components/DataBrowser",
+                    "guiApi": 2,
+                    "sm": 12
+                }
+            }
+        },
+        "statisticsTab": {
+            "type": "panel",
+            "label": "Statistics",
+            "items": {
+                "_statistics": {
+                    "type": "custom",
+                    "i18n": true,
+                    "url": "custom/customComponents.js",
+                    "name": "InfluxDBComponentsSet/Components/Statistics",
+                    "guiApi": 2,
+                    "sm": 12
+                }
+            }
+        },
+        "dockerInflux": {
+            "type": "panel",
+            "label": "InfluxDB Docker",
+            "hidden": "!data.dockerInflux?.enabled",
+            "items": {
+                "dockerInflux.bind": {
+                    "newLine": true,
+                    "listenOnAllPorts": true,
+                    "type": "ip",
+                    "label": "Start container on IP",
+                    "sm": 12,
+                    "md": 8
+                },
+                "dockerInflux.port": {
+                    "type": "port",
+                    "label": "Port",
+                    "help": "The port on which the container will be reachable on localhost",
+                    "default": 8086,
+                    "sm": 12,
+                    "md": 4
+                },
+                "dockerInflux.stopIfInstanceStopped": {
+                    "newLine": true,
+                    "type": "checkbox",
+                    "label": "Stop container when instance stops",
+                    "sm": 12,
+                    "md": 6
+                },
+                "dockerInflux.autoImageUpdate": {
+                    "type": "checkbox",
+                    "label": "Auto-update Docker image",
+                    "help": "If enabled, the latest Docker image will be pulled when the adapter starts.",
+                    "sm": 12,
+                    "md": 6
+                }
+            }
+        },
+        "dockerGrafana": {
+            "type": "panel",
+            "label": "Grafana Docker",
+            "hidden": "!data.dockerGrafana?.enabled || !data.dockerInflux?.enabled",
+            "items": {
+                "dockerGrafana.bind": {
+                    "type": "ip",
+                    "label": "Start container on IP",
+                    "listenOnAllPorts": true,
+                    "sm": 12,
+                    "md": 8
+                },
+                "dockerGrafana.port": {
+                    "type": "port",
+                    "label": "Port",
+                    "help": "The port on which the container will be reachable on localhost",
+                    "default": 3000,
+                    "sm": 12,
+                    "md": 4
+                },
+                "dockerGrafana.stopIfInstanceStopped": {
+                    "newLine": true,
+                    "type": "checkbox",
+                    "hidden": "!!data.dockerInflux?.stopIfInstanceStopped",
+                    "label": "Stop container when instance stops",
+                    "sm": 12,
+                    "md": 6
+                },
+                "dockerGrafana.autoImageUpdate": {
+                    "type": "checkbox",
+                    "label": "Auto-update Docker image",
+                    "help": "If enabled, the latest Docker image will be pulled when the adapter starts.",
+                    "sm": 12,
+                    "md": 6
+                },
+                "dockerGrafana.adminSecurityPassword": {
+                    "newLine": true,
+                    "type": "password",
+                    "label": "Admin security password",
+                    "help": "Only by first start",
+                    "xs": 12
+                },
+                "dockerGrafana.serverRootUrl": {
+                    "newLine": true,
+                    "type": "text",
+                    "label": "Server root URL",
+                    "help": "Defines the root URL, useful when Grafana is behind a reverse proxy.",
+                    "xs": 12
+                },
+                "dockerGrafana.plugins": {
+                    "newLine": true,
+                    "type": "chips",
+                    "label": "Plugins",
+                    "help": "Auto-installs plugins at startup",
+                    "xs": 12
+                },
+                "dockerGrafana.usersAllowSignUp": {
+                    "newLine": true,
+                    "type": "checkbox",
+                    "label": "Enable user sign-ups",
+                    "xs": 12
+                }
+            }
+        }
+    }
+}

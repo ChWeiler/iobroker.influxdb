@@ -1,0 +1,70 @@
+version: '3.9'
+
+services:
+    influx:
+        image: influxdb:2
+        labels:
+            - 'iobEnabled=${config.dockerInflux.enabled:-false}'
+            - 'iobStopOnUnload=${config.dockerInflux.stopIfInstanceStopped:-false}'
+            - 'iobAutoImageUpdate=${config.dockerInflux.autoImageUpdate:-true}'
+            - 'iobBackup=flux_data,flux_config'
+        # `true` selects the default name of the instance: iob_<adapterName>_<instance>.
+        # That name is what the container is reachable under inside the shared network, and both
+        # the grafana datasource (prepareDockerConfigGrafana) and the container that
+        # testConnection() starts on its own rely on exactly this name. Do not give it a name of
+        # its own - it would be prefixed to iob_<adapterName>_<instance>_<name> and neither of the
+        # two would find it any more.
+        container_name: true
+        ports:
+            - '${config.dockerInflux.bind:-127.0.0.1}:${config_dockerInflux_port:-8086}:8086'
+        environment:
+            DOCKER_INFLUXDB_INIT_MODE: 'setup'
+            DOCKER_INFLUXDB_INIT_USERNAME: 'iobroker'
+            DOCKER_INFLUXDB_INIT_PASSWORD: 'iobroker'
+            DOCKER_INFLUXDB_INIT_BUCKET: 'iobroker'
+            DOCKER_INFLUXDB_INIT_ORG: 'iobroker'
+            DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: 'aW9icm9rZXI4NjY0NTYzODU0NjU2NTY1MjY1Ng=='
+        volumes:
+            - flux_data:/var/lib/influxdb2
+            - flux_config:/etc/influxdb2
+        networks:
+            - true
+        restart: unless-stopped
+
+    grafana:
+        image: grafana/grafana-oss
+        labels:
+            - 'iobEnabled=${config.dockerGrafana.enabled:-true}'
+            - 'iobStopOnUnload=${config.dockerGrafana.stopIfInstanceStopped:-true}'
+            - 'iobAutoImageUpdate=${config.dockerGrafana.autoImageUpdate:-true}'
+            # `(force)` means that the content of the source is copied to the target by every start of the adapter
+            - 'iobCopyVolumes=./build/grafana-provisioning->grafana_provisioning(force)'
+            - 'iobWaitForReady=true'
+            - 'iobBackup=grafana_data,grafana_provisioning'
+        container_name: grafana
+        depends_on:
+            - influx
+        ports:
+            - '${config.dockerGrafana.bind:-127.0.0.1}:${config_dockerGrafana_port:-3000}:3000'
+        environment:
+            GF_SECURITY_ADMIN_PASSWORD: '${config.dockerGrafana.adminSecurityPassword:-iobroker}'
+            GF_SERVER_ROOT_URL: '${config.dockerGrafana.serverRootUrl:-}'
+            GF_INSTALL_PLUGINS: '${config.dockerGrafana.plugins:-}'
+            GF_USERS_ALLOW_SIGN_UP: '${config.dockerGrafana.usersAllowSignUp:-false}'
+        volumes:
+            - grafana_data:/var/lib/grafana
+            # bind mount so your generated provisioning files are visible
+            - grafana_provisioning:/etc/grafana/provisioning
+        networks:
+            - true
+        restart: unless-stopped
+
+networks:
+    true:
+        driver: bridge
+
+volumes:
+    flux_data:
+    flux_config:
+    grafana_data:
+    grafana_provisioning:
