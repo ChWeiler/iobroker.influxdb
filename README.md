@@ -11,8 +11,10 @@
 
 This adapter saves state history into InfluxDB.
 
-### ACHTUNG
-** Diese Version ist entstanden aus https://github.com/ioBroker/ioBroker.influxdb und mit Claude für influxDB V3 geändert worden!!
+```diff
+- ### ACHTUNG
+- ** Diese Version ist entstanden aus https://github.com/ioBroker/ioBroker.influxdb und mit Claude für influxDB V3 geändert worden!!**
+```
 
 **The Adapter supports InfluxDB 1.x and 2.x and 3.x**
 
