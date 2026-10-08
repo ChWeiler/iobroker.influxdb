@@ -10,6 +10,7 @@
                     "newLine": true,
                     "type": "checkDocker",
                     "label": "Use self-hosted InfluxDB in Docker",
+                    "hidden": "data.dbversion === '3.x' && !data.dockerInflux?.enabled",
                     "help": "docker_explanation",
                     "xs": 12
                 },
