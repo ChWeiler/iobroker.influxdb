@@ -10,7 +10,6 @@
                     "newLine": true,
                     "type": "checkDocker",
                     "label": "Use self-hosted InfluxDB in Docker",
-                    "hidden": "data.dbversion === '3.x' && !data.dockerInflux?.enabled",
                     "help": "docker_explanation",
                     "xs": 12
                 },
@@ -30,8 +29,7 @@
                     "default": "1.x",
                     "options": [
                         { "label": "1.x", "value": "1.x" },
-                        { "label": "2.x", "value": "2.x" },
-                        { "label": "3.x (Core / Enterprise)", "value": "3.x" }
+                        { "label": "2.x", "value": "2.x" }
                     ],
                     "hidden": "!!data.dockerInflux?.enabled",
                     "sm": 12,
@@ -70,7 +68,7 @@
                     "type": "text",
                     "label": "Path",
                     "help": "only enter when e.g. a reverse proxy is used",
-                    "hidden": "data.dbversion !== '2.x' || !!data.dockerInflux?.enabled",
+                    "hidden": "data.dbversion === '1.x' || !!data.dockerInflux?.enabled",
                     "sm": 12,
                     "md": 4
                 },
@@ -78,14 +76,14 @@
                     "newLine": true,
                     "type": "text",
                     "label": "User",
-                    "hidden": "data.dbversion === '2.x' || data.dbversion === '3.x' || !!data.dockerInflux?.enabled",
+                    "hidden": "data.dbversion === '2.x' || !!data.dockerInflux?.enabled",
                     "sm": 12,
                     "md": 4
                 },
                 "password": {
                     "type": "password",
                     "label": "Password",
-                    "hidden": "data.dbversion === '2.x' || data.dbversion === '3.x' || !!data.dockerInflux?.enabled",
+                    "hidden": "data.dbversion === '2.x' || !!data.dockerInflux?.enabled",
                     "repeat": true,
                     "sm": 12,
                     "md": 8
@@ -94,7 +92,7 @@
                     "newLine": true,
                     "type": "text",
                     "label": "Organization",
-                    "hidden": "data.dbversion !== '2.x' || !!data.dockerInflux?.enabled",
+                    "hidden": "data.dbversion === '1.x' || !!data.dockerInflux?.enabled",
                     "sm": 12,
                     "md": 4
                 },
@@ -366,7 +364,6 @@
                     "sm": 12,
                     "md": 6,
                     "label": "Use tags to store metadata information, instead of fields",
-                    "hidden": "data.dbversion === '3.x'",
                     "help": "usetags help",
                     "confirm": {
                         "text": "This feature can only be used on databases that are empty, or already were setup with this feature enabled. Otherwise it will cause errors (see logs).",

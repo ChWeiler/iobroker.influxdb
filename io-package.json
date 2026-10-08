@@ -14,7 +14,7 @@
       "uk": "Збереження історії подій для окремих станів в InfluxDB",
       "zh-cn": "将状态记录到InfluxDB中"
     },
-    "version": "5.2.0-beta.4",
+    "version": "5.1.0",
     "titleLang": {
       "en": "Logging data with InfluxDB",
       "de": "Daten mit InfluxDB protokollieren",

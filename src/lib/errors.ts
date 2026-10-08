@@ -1,20 +1,18 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.HostUnavailableError = exports.UnstorableValueError = void 0;
-exports.formatError = formatError;
-exports.isConnectionError = isConnectionError;
 // Only the first few sub-errors of an AggregateError are rendered - a DNS name with many A/AAAA
 // records would otherwise produce a log line of arbitrary length.
 const MAX_NESTED_ERRORS = 5;
 const MAX_DEPTH = 3;
+
 /**
  * Error names that say nothing about the cause. `Error` is the default of every `new Error()`, and
  * `AggregateError` is just the box Node puts the real connect errors into - neither belongs in a log
  * line. A driver-specific name like `HttpError` or `ServiceNotAvailableError` is kept, it does tell something.
  */
 const GENERIC_ERROR_NAMES = ['Error', 'AggregateError'];
+
 /** Fields the InfluxDB drivers put on their errors that are worth showing when the message alone says nothing */
-const DETAIL_FIELDS = ['code', 'errno', 'syscall', 'address', 'port', 'statusCode'];
+const DETAIL_FIELDS = ['code', 'errno', 'syscall', 'address', 'port', 'statusCode'] as const;
+
 /** Socket/DNS level failures: the database is not reachable, retrying the same point makes no sense */
 const CONNECTION_ERROR_CODES = [
     'EAI_AGAIN',
@@ -32,12 +30,17 @@ const CONNECTION_ERROR_CODES = [
     'ETIMEDOUT',
     'ERR_SOCKET_CONNECTION_TIMEOUT',
 ];
+
 /** Error classes that only ever mean "no usable host" - the driver's own and ours */
 const CONNECTION_ERROR_NAMES = ['ServiceNotAvailableError', 'HostUnavailableError'];
+
 /** HTTP status codes of a gateway/proxy in front of InfluxDB that mean the server itself is down */
 const CONNECTION_ERROR_STATUS_CODES = [502, 503, 504];
+
 /** Wordings the drivers use for the same situation when they do not set a code */
-const CONNECTION_ERROR_PATTERN = /(timeout|timed out|socket hang up|no host available|service not available|network error|connection (closed|refused|lost|terminated))/i;
+const CONNECTION_ERROR_PATTERN =
+    /(timeout|timed out|socket hang up|no host available|service not available|network error|connection (closed|refused|lost|terminated))/i;
+
 /**
  * A value that InfluxDB is not able to store at all (`null`, `NaN`/`Infinity`, or a non-numeric value
  * for a datapoint pinned to `Number`).
@@ -46,29 +49,30 @@ const CONNECTION_ERROR_PATTERN = /(timeout|timed out|socket hang up|no host avai
  * caller logs it once per datapoint instead of on every state change, while `storeState` still answers
  * with a real error instead of a silent `success: true`.
  */
-class UnstorableValueError extends Error {
+export class UnstorableValueError extends Error {
     /** Which of the three checks rejected the value - used as part of the "logged already" key */
-    kind;
-    constructor(kind, message) {
+    public readonly kind: 'null' | 'nonFinite' | 'type';
+
+    constructor(kind: 'null' | 'nonFinite' | 'type', message: string) {
         super(message);
         this.name = 'UnstorableValueError';
         this.kind = kind;
     }
 }
-exports.UnstorableValueError = UnstorableValueError;
+
 /**
  * The request was not even attempted, because the host is known to be unreachable.
  *
  * Thrown instead of a plain `Error`, so the caller can throttle it like any other connection error
  * (`isConnectionError()` knows this class) rather than repeating it on every buffered value.
  */
-class HostUnavailableError extends Error {
-    constructor(message) {
+export class HostUnavailableError extends Error {
+    constructor(message: string) {
         super(message);
         this.name = 'HostUnavailableError';
     }
 }
-exports.HostUnavailableError = HostUnavailableError;
+
 /**
  * Render an error as one readable line.
  *
@@ -82,7 +86,7 @@ exports.HostUnavailableError = HostUnavailableError;
  * @param depth recursion depth, used internally for nested errors
  * @returns a non-empty, single-line description
  */
-function formatError(err, depth = 0) {
+export function formatError(err: unknown, depth = 0): string {
     if (err === null || err === undefined) {
         return 'Unknown error';
     }
@@ -96,19 +100,21 @@ function formatError(err, depth = 0) {
         // symbol or function - nothing sensible to print
         return Object.prototype.toString.call(err);
     }
-    const error = err;
+
+    const error = err as Record<string, any>;
     const message = typeof error.message === 'string' ? oneLine(error.message) : '';
     const name = typeof error.name === 'string' && error.name ? error.name : '';
+
     let text = '';
     if (name && !GENERIC_ERROR_NAMES.includes(name)) {
         text = message ? `${name}: ${message}` : name;
-    }
-    else {
+    } else {
         text = message;
     }
+
     // AggregateError: the reason is in `errors`, not in `message`
     if (Array.isArray(error.errors) && error.errors.length && depth < MAX_DEPTH) {
-        const details = [];
+        const details: string[] = [];
         for (const nested of error.errors.slice(0, MAX_NESTED_ERRORS)) {
             const nestedText = describeNested(nested, depth + 1);
             // both stacks of a happy-eyeballs connect fail the same way more often than not
@@ -123,6 +129,7 @@ function formatError(err, depth = 0) {
             text = text ? `${text}: ${details.join('; ')}` : details.join('; ');
         }
     }
+
     for (const field of DETAIL_FIELDS) {
         const value = error[field];
         if ((typeof value === 'string' && value) || typeof value === 'number') {
@@ -131,12 +138,14 @@ function formatError(err, depth = 0) {
             }
         }
     }
+
     if (error.cause !== undefined && error.cause !== null && depth < MAX_DEPTH) {
         const cause = formatError(error.cause, depth + 1);
         if (cause && !text.includes(cause)) {
             text = text ? `${text}; caused by ${cause}` : cause;
         }
     }
+
     if (!text) {
         // nothing but an empty shell - show what it actually holds
         try {
@@ -144,14 +153,15 @@ function formatError(err, depth = 0) {
             if (json && json !== '{}') {
                 return json;
             }
-        }
-        catch {
+        } catch {
             // circular or non-serializable - fall through
         }
         return name || Object.prototype.toString.call(error);
     }
+
     return text;
 }
+
 /**
  * Is this error "the database is not reachable" and not "this point is bad"?
  *
@@ -165,14 +175,16 @@ function formatError(err, depth = 0) {
  * @param depth recursion depth, used internally for nested errors
  * @returns true if the error means the host is (currently) not usable
  */
-function isConnectionError(err, depth = 0) {
+export function isConnectionError(err: unknown, depth = 0): boolean {
     if (typeof err === 'string') {
         return CONNECTION_ERROR_PATTERN.test(err) || CONNECTION_ERROR_CODES.some(code => err.includes(code));
     }
     if (!err || typeof err !== 'object') {
         return false;
     }
-    const error = err;
+
+    const error = err as Record<string, any>;
+
     if (typeof error.code === 'string' && CONNECTION_ERROR_CODES.includes(error.code)) {
         return true;
     }
@@ -185,23 +197,28 @@ function isConnectionError(err, depth = 0) {
     if (typeof error.message === 'string' && CONNECTION_ERROR_PATTERN.test(error.message)) {
         return true;
     }
+
     if (depth >= MAX_DEPTH) {
         return false;
     }
-    if (Array.isArray(error.errors) && error.errors.some((nested) => isConnectionError(nested, depth + 1))) {
+
+    if (Array.isArray(error.errors) && error.errors.some((nested: unknown) => isConnectionError(nested, depth + 1))) {
         return true;
     }
+
     return error.cause !== undefined && error.cause !== null && isConnectionError(error.cause, depth + 1);
 }
+
 /**
  * Squeeze all whitespace into single spaces, so a multi-line driver message stays one log line
  *
  * @param text the text to normalize
  * @returns the text without line breaks
  */
-function oneLine(text) {
+function oneLine(text: string): string {
     return text.replace(/\s+/g, ' ').trim();
 }
+
 /**
  * Describe one sub-error of an AggregateError: the message alone if there is one, because it usually
  * already carries the code ("connect ECONNREFUSED 127.0.0.1:8086").
@@ -210,9 +227,9 @@ function oneLine(text) {
  * @param depth current recursion depth
  * @returns a short description of the nested error
  */
-function describeNested(err, depth) {
+function describeNested(err: unknown, depth: number): string {
     if (err && typeof err === 'object') {
-        const nested = err;
+        const nested = err as Record<string, any>;
         const message = typeof nested.message === 'string' ? oneLine(nested.message) : '';
         if (message) {
             const code = typeof nested.code === 'string' ? nested.code : '';

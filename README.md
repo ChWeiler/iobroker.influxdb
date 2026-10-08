@@ -11,21 +11,7 @@
 
 This adapter saves state history into InfluxDB.
 
-
-# ACHTUNG
-**Diese Version ist entstanden aus https://github.com/ioBroker/ioBroker.influxdb und mit Claude für influxDB V3 geändert worden!!**
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-
-
-# Infos vom Orginaladapter + Erweiterungen für V3.x!
-
-**The Adapter supports InfluxDB 1.x and 2.x and 3.x**
+**The Adapter supports InfluxDB 1.x and 2.x**
 
 **This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.** For more details and for information how to disable the error reporting see [Sentry-Plugin Documentation](https://github.com/ioBroker/plugin-sentry#plugin-sentry)! Sentry reporting is used starting with js-controller 3.0.
 
@@ -46,23 +32,6 @@ Here beside the Host-IP and Port the following data are required:
 You can also define a database name - this is used as a Bucket. The default is `iobroker`. On the first adapter start, this bucket is created in the configured organization.
 
 When doing custom queries via the "query" message, you can use Flux queries to select the data you want. Details on Flux can be found at https://docs.influxdata.com/influxdb/v2.0/reference/flux/
-
-### InfluxDB 3.x (Core / Enterprise)
-Choose "3.x (Core / Enterprise)" in the adapter configuration and enter Host-IP, Port (InfluxDB 3 listens on `8181` by default) and a token:
-* **Token**: an admin token (`influxdb3 create token --admin`) or a resource token with read **and** write permission on the database. An admin token is needed if the adapter should create the database and set its retention period itself.
-
-The database name is used as InfluxDB 3 database. The default is `iobroker`. On the first adapter start, the database is created.
-
-InfluxDB 3 is read with InfluxQL (via the 1.x compatible `/query` endpoint) and written via `/api/v3/write_lp`. Custom queries via the "query" message therefore use InfluxQL, like with 1.x. SQL is not available via the "query" message.
-
-Differences to 1.x/2.x:
-- **No deletion of single values or time ranges.** InfluxDB 3 cannot delete points. `delete` and `deleteRange` are answered with an error (and are not reported by `features`). `deleteAll` and "cleanup orphaned" work, because they drop the whole measurement (table).
-- `update` overwrites the value with the same timestamp, as InfluxDB 3 replaces a point with the same timestamp.
-- **Retention**: InfluxDB 3 has no retention policies, only one retention period per database. The configured retention is applied to the database.
-- **Metadata** (`q`, `ack`, `from`) is always stored as fields; "Use tags" is not available.
-- **Statistics** show no series count, InfluxDB 3 has no series index.
-- Every logged datapoint is one table in InfluxDB 3. Check the table and column limits of your InfluxDB 3 edition/version if you log many datapoints.
-- Queries over long periods may hit the query file limit of InfluxDB 3 Core (`--query-file-limit`).
 
 #### Store metadata information as tags instead of fields
 For `Influx 1.x` state value, as well as associated metadata fields (`q`, `ack` and `from`) are stored as fields within InfluxDB. When using Flux-commands to retrieve this data (instead of `InfluxQL`) the data is returned in separate tables, which makes it more difficult to view the data in a joined way when using external database clients or Influx CLI `query` command. This is by design, as Influx only supports one field per data-point.
@@ -585,9 +554,6 @@ A datapoint that is being logged is never selected, whatever the scope says.
 	Placeholder for the next version (at the beginning of the line):
 	### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
-* Added support for InfluxDB 3.x (Core / Enterprise): InfluxQL for reading, line protocol via `/api/v3/write_lp` for writing, token authentication
-* `update` found no stored value with InfluxDB 1.x, because the result of a single query was read like the result of several
 ### 5.1.0 (2026-10-03)
 * (@jb-io) Added custom tags per datapoint, written with every value to InfluxDB 1.x and 2.x (#32)
 * (@GermanBluefox) `enableHistory` also accepts the custom tags in the form `getEnabledDPs` reports them, so a configuration read from there and written back keeps its tags
